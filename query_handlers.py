@@ -83,6 +83,43 @@ class Corpus(object):
         else:
             raise ValueError('author must be one of "jones" or "ebert", you gave {}'.format(author))
 
+    def filter_articles_by_person(self, name):
+        """Retrieve articles with a persons name
+
+        Args:
+            name (string): A string with a name e.g. 'Tracy Letts'
+
+        Return:
+            A list of tuples: (title, article text)
+        """
+
+        if self.author == 'jones':
+            q = {
+                "_source": ["Full text:", "ProQ:"],
+                "from": 0, "size": 10000,
+                "query": {
+                    "bool" : {
+                        "must": [{"match":{"Full text:": i}} for i in name.split(' ')]
+                    }
+                }
+            }
+            r = json.loads(requests.post(self.es_host+"flattened-articles/_search", json.dumps(q)).content.decode('utf-8', 'ignore'))
+            return [Article(clean_article_title(i['_source']['ProQ:']), i['_source']['Full text:']) for i in r['hits']['hits']]
+        elif self.author == 'ebert':
+            q = {
+                "_source": ["text", "title"],
+                "from": 0, "size": 10000,
+                "query": {
+                    "bool" : {
+                        "must": [{"match":{"text": i}} for i in name.split(' ')]
+                    }
+                }
+            }
+            r = json.loads(requests.post(self.es_host+"ebert-reviews/_search", json.dumps(q)).content.decode('utf-8', 'ignore'))
+            return [Article(i['_source']['title'], i['_source']['text']) for i in r['hits']['hits']]
+        else:
+            raise ValueError('author must be one of "jones" or "ebert", you gave {}'.format(author))
+
     def retrieve_article(self, article_string):
         """Retreive a single article with a title relevant to article_string
 
@@ -151,7 +188,7 @@ class Article(object):
         """
 
         for p in self.paragraphs:
-            if re.search(c.text.text, p) is not None:
+            if re.search(c.text.text.split('(')[0], p) is not None:
                 return p
         raise ValueError('Content must be in the Article, no match found for {}'.format(c.text.text))
 
@@ -390,62 +427,96 @@ def compare_person_works(corpus, name, title):
     for i in final_results:
         print(i[0].get_paragraph(i[1]))
 
+# How do you feel about ___person___ in ___show___
+def opinion_person_in_article(corpus, name, article):
+    c = Corpus(corpus)
+    a = c.retrieve_article(article)
+
+    sorted_results = sorted([i for i in compose_filters(a.sentences,
+                                                        [filter_opinion,
+                                                         filter_stop_chars,
+                                                         filter_name,
+                                                         filter_name_subject_object,
+                                                         filter_name_subject],
+                                                        name=name) if i.filter_depth >=3],
+                            key=lambda x: x.subjectivity,
+                            reverse=True)
+
+    for i in sorted_results:
+        try:
+            return a.get_paragraph(i)
+        except ValueError:
+            pass
+    return "I'm sorry, I don't have anything to say about {}".format(article)
 
 def main():
-    print('\n')
-    print('Roger Ebert, do you always like Francis Ford Coppola?')
-    print(always_like_name('ebert', 'Francis Ford Coppola'))
-    print('\n')
-    print('Roger Ebert, do you always like Viggo Mortensen?')
-    print(always_like_name('ebert', 'Viggo Mortensen'))
-    print('\n')
-    print('Chris Jones, do you always like Aaron Sorkin?')
-    print(always_like_name('jones', 'Aaron Sorkin'))
-    print('\n')
-    print('Chris Jones, do you always like Aaron Todd Douglas?')
-    print(always_like_name('jones', 'Aaron Todd Douglas'))
-    print('\n')
-    print('Chris Jones, do you always dislike Aaron Todd Douglas?')
-    print(always_dislike_name('jones', 'Aaron Todd Douglas'))
-    print('\n')
-    print('Chris Jones, do you always like Tracy Letts?')
-    print(always_like_name('jones', 'Tracy Letts'))
-    print('\n')
-    print('Chris Jones, do you always dislike Steppenwolf?')
-    print(always_dislike_name('jones', 'Steppenwolf'))
+    #    print('\n')
+    #    print('Roger Ebert, do you always like Francis Ford Coppola?')
+    #    print(always_like_name('ebert', 'Francis Ford Coppola'))
+    #    print('\n')
+    #    print('Roger Ebert, do you always like Viggo Mortensen?')
+    #    print(always_like_name('ebert', 'Viggo Mortensen'))
+    #    print('\n')
+    #    print('Chris Jones, do you always like Aaron Sorkin?')
+    #    print(always_like_name('jones', 'Aaron Sorkin'))
+    #    print('\n')
+    #    print('Chris Jones, do you always like Aaron Todd Douglas?')
+    #    print(always_like_name('jones', 'Aaron Todd Douglas'))
+    #    print('\n')
+    #    print('Chris Jones, do you always dislike Aaron Todd Douglas?')
+    #    print(always_dislike_name('jones', 'Aaron Todd Douglas'))
+    #    print('\n')
+    #    print('Chris Jones, do you always like Tracy Letts?')
+    #    print(always_like_name('jones', 'Tracy Letts'))
+    #    print('\n')
+    #    print('Chris Jones, do you always dislike Steppenwolf?')
+    #    print(always_dislike_name('jones', 'Steppenwolf'))
+
+    #    print('\n')
+    #    print('Roger Ebert, who was your favorite person in Apocalypse Now?')
+    #    print(favorite_person_in_article('ebert', 'Apocalypse Now'))
+    #    print('\n')
+    #    print('Chris Jones, who was your favorite person in Killer Joe?')
+    #    print(favorite_person_in_article('jones', 'Killer Joe'))
+    #    print('\n')
+    #    print('Roger Ebert, what was the worst thing in Apocalypse Now Redux?')
+    #    print(least_favorite_in_article('ebert', 'Apocalypse Now Redux'))
+
+    #    print('\n')
+    #    # One of the original questions that started this endeavor was
+    #    # "Chris, well doy just always dislike mexican directors?". The approach
+    #    # that I favor is to actually use an external databse, knowledge graph, etc.
+    #    # to get a list of related directors according to whatever the characteristic
+    #    # in question may be (in this case, country of origin), and then execute the
+    #    # same dislike_name function we've been calling before for each of them.
+
+    #    # Shockingly, if we call it for Alfonso Cuaron (who would very likely be
+    #    # near the top of any list of prominent Mexican filmmakers, especially
+    #    # after Children of Men and Gravity), we get the following:
+
+    #    # print('Roger Ebert, do you always dislike Alejandro Gonzalez Inarritu?')
+    #    # print(always_dislike_name('ebert', 'Alejandro Gonzalez Inarritu'))
+    #    print('Roger Ebert, do you always dislike Mexican Filmmakers?')
+    #    print(always_dislike_name('ebert', 'Alfonso Cuaron'))
+
+    #    print('\n')
+    #    compare_person_works('jones', 'Tracy Letts', 'August Osage County')
+
+    #    print('\n')
+    #    compare_person_works('jones', 'Steppenwolf Theatre', 'Buried Child')
 
     print('\n')
-    print('Roger Ebert, who was your favorite person in Apocalypse Now?')
-    print(favorite_person_in_article('ebert', 'Apocalypse Now'))
-    print('\n')
-    print('Chris Jones, who was your favorite person in Killer Joe?')
-    print(favorite_person_in_article('jones', 'Killer Joe'))
-    print('\n')
-    print('Roger Ebert, what was the worst thing in Apocalypse Now Redux?')
-    print(least_favorite_in_article('ebert', 'Apocalypse Now Redux'))
+    print('Ebert, what did you think of Jennifer Lawrence in Winters Bone?')
+    print(opinion_person_in_article('ebert', 'Jennifer Lawrence', "Winter's Bone"))
 
     print('\n')
-    # One of the original questions that started this endeavor was
-    # "Chris, well doy just always dislike mexican directors?". The approach
-    # that I favor is to actually use an external databse, knowledge graph, etc.
-    # to get a list of related directors according to whatever the characteristic
-    # in question may be (in this case, country of origin), and then execute the
-    # same dislike_name function we've been calling before for each of them.
+    print('Jones, what did you think of Tom Bateman in AmeriKafka?')
+    print(opinion_person_in_article('jones', 'Bateman', "AmeriKafka"))
 
-    # Shockingly, if we call it for Alfonso Cuaron (who would very likely be
-    # near the top of any list of prominent Mexican filmmakers, especially
-    # after Children of Men and Gravity), we get the following:
 
-    # print('Roger Ebert, do you always dislike Alejandro Gonzalez Inarritu?')
-    # print(always_dislike_name('ebert', 'Alejandro Gonzalez Inarritu'))
-    print('Roger Ebert, do you always dislike Mexican Filmmakers?')
-    print(always_dislike_name('ebert', 'Alfonso Cuaron'))
-
-    print('\n')
-    compare_person_works('ebert', 'Francis Ford Coppola', 'The Godfather')
-
-    print('\n')
-    compare_person_works('jones', 'Steppenwolf Theatre', 'Buried Child')
-
+    c = Corpus('jones')
+    arts = c.filter_articles_by_person("Bateman's")
+    for a in arts:
+        print(a.title)
 if __name__ == '__main__':
     main()
