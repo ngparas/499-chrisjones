@@ -90,19 +90,32 @@ class SlackBot:
         elif person is not None:
 
             if query_type == "compare_person_works":
-                response = compare_person_works('ebert', person, " ".join(query_text.split(' ')[-2:]))
-                film_title = " ".join(query_text.split(' ')[-2:])
+                if not ("in it" in query_text):
+                    response = compare_person_works('ebert', person, " ".join(query_text.split(' ')[-2:]))
+                    film_title = " ".join(query_text.split(' ')[-2:])
+                else:
+                    film_title = self.memory[-1].get('film_title')
+                    response = compare_person_works('ebert', person, film_title)
             elif query_type == 'opinion_person_in_article':
-                response = opinion_person_in_article('ebert', person, " ".join(query_text.split(' ')[-2:]))
-                film_title = " ".join(query_text.split(' ')[-2:])
+                if not ("in it" in query_text):
+                    response = opinion_person_in_article('ebert', person, " ".join(query_text.split(' ')[-2:]))
+                    film_title = " ".join(query_text.split(' ')[-2:])
+                else:
+                    film_title = self.memory[-1].get('film_title')
+                    print('Grabbed film title from stack, {}'.format(film_title))
+                    response = opinion_person_in_article('ebert', person, film_title)
             elif query_type == "always_dislike_name":
                 response = always_dislike_name('ebert', person)
+                film_title = None
             elif query_type == 'always_like_name':
                 response = always_like_name('ebert', person)
+                film_title = None
             elif query_type == 'like_person':
                 response = like_person_wrapper('ebert', person)
+                film_title = None
         else:
             response = "No person found, more question support coming soon"
+            film_title = None
 
 
 
@@ -113,10 +126,12 @@ class SlackBot:
         self.memory.append({
             'query_text': query_text,
             'query_type': query_type,
-            'title': film_title,
+            'film_title': film_title,
             'person': person,
             'response': response
         })
+
+        print(film_title)
 
         return response
 
