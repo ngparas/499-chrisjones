@@ -13,6 +13,7 @@ import textacy
 from textacy import similarity
 NLP = spacy.load('en')
 stopwords = stopwords.words('english')
+EBERT_READABILITY = 9.782916286401726
 
 def clean_article_title(title):
     """Take an article-source URL and return a cleanly formatted title
@@ -833,7 +834,7 @@ def person_overlap(summary_text):
     return num_anaphors / (len(sentences) - 1)
 
 
-EBERT_READABILITY = 9.782916286401726
+
 def score_summary_2(summary_text):
     """Score a summarized piece of text
     """
@@ -927,7 +928,7 @@ def like_person_wrapper(corpus, name):
 
     """
     results = []
-    for f in [like_person_3]:#[like_person, like_person_2, like_person_3, like_person_4]:
+    for f in [like_person_3, like_person_4]:
         results.append(f(corpus, name))
 
     max_score = 0

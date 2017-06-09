@@ -78,6 +78,8 @@ class SlackBot:
             print('using previous context for query type')
             query_type = self.memory[-1].get('query_type')
 
+
+
         print('{} question type for person: {}'.format(query_type, person))
 
         if query_type == 'favorite_person_in_article':
@@ -89,9 +91,10 @@ class SlackBot:
 
             if query_type == "compare_person_works":
                 response = compare_person_works('ebert', person, " ".join(query_text.split(' ')[-2:]))
+                film_title = " ".join(query_text.split(' ')[-2:])
             elif query_type == 'opinion_person_in_article':
                 response = opinion_person_in_article('ebert', person, " ".join(query_text.split(' ')[-2:]))
-                # TODO: store the film title in memory stack so that we can call this again with a new person
+                film_title = " ".join(query_text.split(' ')[-2:])
             elif query_type == "always_dislike_name":
                 response = always_dislike_name('ebert', person)
             elif query_type == 'always_like_name':
@@ -110,6 +113,7 @@ class SlackBot:
         self.memory.append({
             'query_text': query_text,
             'query_type': query_type,
+            'title': film_title,
             'person': person,
             'response': response
         })
